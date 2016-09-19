@@ -95,7 +95,7 @@ class TestMetaFields(unittest.TestCase):
             person_two = FormField(form=PersonForm)
         
         form = PeopleForm()
-        form_html = unicode(form)
+        form_html = str(form)
         self.assertTrue('id_person_one-last_name' in form_html)
         
         form = PeopleForm(data={})
@@ -104,7 +104,7 @@ class TestMetaFields(unittest.TestCase):
         initial = {'person_one': {'first_name':'John', 'last_name':'Smith'},
                    'person_two': {'first_name':'Jane', 'last_name':'Doe'},}
         form = PeopleForm(initial=initial)
-        form_html = unicode(form)
+        form_html = str(form)
         self.assertTrue('value="John"' in form_html)
         
         data = {'person_one-first_name':'John',
@@ -113,7 +113,7 @@ class TestMetaFields(unittest.TestCase):
                 'person_two-last_name':'Doe',}
         form = PeopleForm(initial=initial, data=data)
         self.assertTrue(form.is_valid())
-        form_html = unicode(form)
+        form_html = str(form)
         self.assertTrue('value="John"' in form_html)
         self.assertEqual(initial, form.cleaned_data)
     
@@ -130,7 +130,7 @@ class TestMetaFields(unittest.TestCase):
             people = ListFormField(form=PersonForm)
         
         form = GroupForm()
-        form_html = unicode(form)
+        form_html = str(form)
         self.assertTrue('id_people-0-first_name' in form_html)
         
         form = GroupForm(data={})
@@ -140,7 +140,7 @@ class TestMetaFields(unittest.TestCase):
                    'people': [{'first_name':'John', 'last_name':'Smith'},
                               {'first_name':'Jane', 'last_name':'Doe'},],}
         form = GroupForm(initial=initial)
-        form_html = unicode(form)
+        form_html = str(form)
         self.assertTrue('value="John"' in form_html)
         
         data = {'group_name': 'anonymous',
@@ -155,7 +155,7 @@ class TestMetaFields(unittest.TestCase):
         form = GroupForm(initial=initial, data=data)
         self.assertTrue(form.is_valid())
         self.assertTrue('people' in form.changed_data)
-        form_html = unicode(form)
+        form_html = str(form)
         self.assertTrue('value="John"' in form_html)
         #print form_html
         #self.assertEqual(len(form.cleaned_data['people']), 2) #TODO don't return empty results

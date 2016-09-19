@@ -4,16 +4,16 @@ from django.forms.formsets import formset_factory
 from django.utils.safestring import mark_safe
 from django.contrib.contenttypes.models import ContentType
 
-from resource import registry
-from utils import prep_for_kwargs
-import spec_widget
+from .resource import registry
+from .utils import prep_for_kwargs
+from . import spec_widget
 
 class BaseFieldForm(forms.Form):
     required = forms.BooleanField(initial=True, required=False)
     label = forms.CharField(required=False)
     initial = forms.CharField(required=False)
     help_text = forms.CharField(required=False)
-    
+
     def clean(self):
         for key, value in self.cleaned_data.items():
             if value in ("", None):
@@ -25,16 +25,16 @@ class BaseField(object):
     identities = list()
     form = BaseFieldForm
     default_widget = 'TextInput'
-    
+
     def create_field(self, data, widget=None):
         kwargs = prep_for_kwargs(data)
         if widget:
             kwargs['widget'] = widget
         return self.field(**kwargs)
-    
+
     def widget_choices(self):
         choices = list()
-        for key, widget in registry.widgets.iteritems():
+        for key, widget in registry.widgets.items():
             if not widget.identities:
                 choices.append((key, key))
             else:
@@ -43,14 +43,14 @@ class BaseField(object):
                         choices.append((key, key))
                         break
         return choices
-    
+
     def render_example(self):
         field = self.create_field({})
         return field.render('name', 'value')
-    
+
     def get_form(self):
         return self.form
-    
+
     def render_for_admin(self, key):
         return mark_safe('<table class="%s">%s</table>' % (key, self.get_form()(prefix='prefix').as_table()))
 
@@ -167,11 +167,11 @@ class IntegerField(BaseField):
 
 registry.register_field('IntegerField', IntegerField)
 
-class IPAddressField(BaseField):
-    field = forms.IPAddressField
-    identities = ['IPAddressField']
+class GenericIPAddressField(BaseField):
+    field = forms.GenericIPAddressField
+    identities = ['GenericIPAddressField']
 
-registry.register_field('IPAddressField', IPAddressField)
+registry.register_field('GenericIPAddressField', GenericIPAddressField)
 
 class NullBooleanField(BaseField):
     field = forms.NullBooleanField
@@ -216,7 +216,7 @@ registry.register_field('URLField', URLField)
 
 class ModelChoiceFieldForm(BaseFieldForm):
     model = forms.ModelChoiceField(queryset=ContentType.objects.all())
-    
+
     def clean(self):
         if not self._errors:
             self.cleaned_data['model'] = self.cleaned_data['model'].pk
@@ -226,7 +226,7 @@ class ModelChoiceField(BaseField):
     form = ModelChoiceFieldForm
     field = forms.ModelChoiceField
     identities = ['ChoiceField']
-    
+
     def create_field(self, data, widget=None):
         kwargs = prep_for_kwargs(data)
         if widget:
@@ -240,26 +240,26 @@ registry.register_field('ModelChoiceField', ModelChoiceField)
 
 class BaseFormSetField(BaseField):
     formset = spec_widget.BaseListFormSet
-    
+
     def get_form(self):
         formset = formset_factory(self.form,
                                   formset=self.formset,
                                   can_delete=True) #TODO allow for configuration
         return formset
-    
+
     def render_for_admin(self, key):
         parts = list()
         form = self.get_form()()
         for subform in form:
-            parts.append(u'<tr class="dynamic-form"><td><table class="module">%s</table></td></tr>' % subform.as_table())
-        parts.append(u'<tr class="dynamic-form empty-form"><td><table class="module">%s</table></td></tr>' % (form.empty_form.as_table()))
-        return mark_safe(u'<div class="%s dynamic-set">%s<table> %s</table></div>' % (key, unicode(form.management_form), u'\n'.join(parts)))
+            parts.append('<tr class="dynamic-form"><td><table class="module">%s</table></td></tr>' % subform.as_table())
+        parts.append('<tr class="dynamic-form empty-form"><td><table class="module">%s</table></td></tr>' % (form.empty_form.as_table()))
+        return mark_safe('<div class="%s dynamic-set">%s<table> %s</table></div>' % (key, str(form.management_form), '\n'.join(parts)))
 
 class FormField(BaseFormSetField):
     form = spec_widget.FieldEntryForm
     field = spec_widget.FormField
     identities = ['FormField']
-    
+
     def create_field(self, data, widget=None):
         entries = list()
         for entry in data:
@@ -274,7 +274,7 @@ class ListFormField(BaseFormSetField):
     form = spec_widget.FieldEntryForm
     field = spec_widget.ListFormField
     identities = ['ListFormField']
-    
+
     def create_field(self, data, widget=None):
         entries = list()
         for entry in data:

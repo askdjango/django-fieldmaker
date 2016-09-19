@@ -136,7 +136,7 @@ class FormDefinition(models.Model):
     
     data = models.TextField()
     
-    def __unicode__(self):
+    def __str__(self):
         return self.name
     
     def get_data(self):

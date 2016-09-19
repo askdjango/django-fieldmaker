@@ -2,10 +2,10 @@ from django import forms
 from django.forms import widgets
 from django.utils.safestring import mark_safe
 
-from resource import field_registry
-from utils import prep_for_kwargs
-import html5widgets
-import spec_widget
+from .resource import field_registry
+from .utils import prep_for_kwargs
+from . import html5widgets
+from . import spec_widget
 
 class BaseWidgetForm(forms.Form):
     classes = forms.CharField(required=False)

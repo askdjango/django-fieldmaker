@@ -1,4 +1,4 @@
-import fields
-import widgets
-import form_specifications
+from . import fields
+from . import widgets
+from . import form_specifications
 

@@ -57,11 +57,11 @@ class RecaptchaWidget(forms.Widget):
 class RecaptchaField(forms.Field):
     widget = RecaptchaWidget
     default_error_messages = {
-        'required': u'Please enter the CAPTCHA solution.',
-        'invalid': u'An incorrect CAPTCHA solution was entered.',
-        'no-remote-ip': u'CAPTCHA failed due to no visible IP address.',
-        'challenge-error': u'An error occurred with the CAPTCHA service - try refreshing.',
-        'unknown-error': u'The CAPTCHA service returned the following error: %(code)s.',
+        'required': 'Please enter the CAPTCHA solution.',
+        'invalid': 'An incorrect CAPTCHA solution was entered.',
+        'no-remote-ip': 'CAPTCHA failed due to no visible IP address.',
+        'challenge-error': 'An error occurred with the CAPTCHA service - try refreshing.',
+        'unknown-error': 'The CAPTCHA service returned the following error: %(code)s.',
     }
 
     def __init__(self, private_key, public_key, *args, **kwargs):

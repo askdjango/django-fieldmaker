@@ -1,8 +1,8 @@
+from collections import OrderedDict
 from django import forms
-from django.utils.datastructures import SortedDict
 
-from resource import registry, FieldRegistry
-from spec_widget import MetaForm
+from .resource import registry, FieldRegistry
+from .spec_widget import MetaForm
 
 class FormSpecification(object):
     def __init__(self):
@@ -25,13 +25,13 @@ class FormSpecification(object):
         return GeneratedForm
     
     def get_fields(self, data):
-        field_dict = SortedDict()
+        field_dict = OrderedDict()
         for field_def in data:
             #fetch the makers
             try:
                 field_maker = self.field_registry.fields[field_def['field']]
             except KeyError:
-                print self, self.field_registry.fields
+                print(self, self.field_registry.fields)
                 raise
             widget_maker = self.field_registry.widgets[field_def['widget']]
             

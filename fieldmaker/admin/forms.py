@@ -27,7 +27,7 @@ FORMWIDGET_FOR_FIELDMAKER_DEFAULTS = {
 class ExpandableAdminModelForm(ExpandableModelForm):
     def get_expanded_fields(self):
         fields = super(ExpandableAdminModelForm, self).get_expanded_fields()
-        for key, field in fields.iteritems():
+        for key, field in fields.items():
             widget_key = type(field.widget)
             if widget_key in FORMWIDGET_FOR_FIELDMAKER_DEFAULTS:
                 field.widget = FORMWIDGET_FOR_FIELDMAKER_DEFAULTS[widget_key]['widget']()
@@ -46,9 +46,9 @@ class AdminFormDefinitionForm(ExpandableAdminModelForm):
         self.post_form_init()
         self.field_forms = dict()
         self.widget_forms = dict()
-        for key, entry in self.get_form_spec().fields.iteritems():
+        for key, entry in self.get_form_spec().fields.items():
             self.field_forms[key] = entry.render_for_admin(key)
-        for key, entry in self.get_form_spec().widgets.iteritems():
+        for key, entry in self.get_form_spec().widgets.items():
             self.widget_forms[key] = entry.render_for_admin(key)
     
     def get_form_spec(self):

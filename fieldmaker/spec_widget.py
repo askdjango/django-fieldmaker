@@ -1,15 +1,16 @@
-from django.forms import widgets
 from django import forms
+from django.conf import settings
+from django.forms import widgets
 from django.forms.formsets import formset_factory, BaseFormSet
+from django.forms.utils import flatatt
 from django.utils.safestring import mark_safe
-from django.forms.util import flatatt
+from .resource import field_registry, registry
 
-from resource import field_registry, registry
 
 def compare_dict(data1, data2):
     if set(data1.iterkeys()) != set(data2.iterkeys()):
         return False
-    for key, value1 in data1.iteritems():
+    for key, value1 in data1.items():
         value2 = data2.get(key)
         if isinstance(value1, list):
             if not compare_list(value1, value2):
@@ -20,6 +21,7 @@ def compare_dict(data1, data2):
         elif value1 != value2:
             return False
     return True
+
 
 def compare_list(data1, data2):
     if len(data1) != len(data2):
@@ -35,12 +37,25 @@ def compare_list(data1, data2):
             return False
     return True
 
+
+def get_form_html(form, render_fn_name):
+    render_fn = getattr(form, render_fn_name)
+    tag = render_fn()
+
+    if 'as_table' == render_fn_name:
+        tag = '<table class="module">' + tag + '</table>'
+    elif 'as_ul' == render_fn_name:
+        tag = '<ul>' + tag + '</ul>'
+
+    return tag
+
+
 class FormWidget(widgets.Widget):
     def __init__(self, *args, **kwargs):
         form = kwargs.pop('form', None)
         self.set_form(form)
         super(FormWidget, self).__init__(*args, **kwargs)
-    
+
     def set_form(self, form):
         self.form = form
 
@@ -51,9 +66,9 @@ class FormWidget(widgets.Widget):
         if self.form:
             if hasattr(self.form, 'render'):
                 return self.form.render()
-            return mark_safe(u'<table%s>%s</table>' % (flatatt(final_attrs), self.form.as_table()))
-        return mark_safe(u'<table%s>&nbsp;</table>' % flatatt(final_attrs))
-    
+            return mark_safe('<table {attrs}>{tag}</table>'.format(attrs=flatatt(final_attrs), tag=self.form.as_table()))
+        return mark_safe('<table {attrs}>&nbsp;</table>'.format(attrs=flatatt(final_attrs)))
+
     def value_from_datadict(self, data, files, name):
         """
         Given a dictionary of data and this widget's name, returns the value
@@ -61,11 +76,11 @@ class FormWidget(widgets.Widget):
         """
         our_data = dict()
         #TODO multi values and file support
-        for key, value in data.iteritems():
+        for key, value in data.items():
             if key.startswith(name):
                 our_data[key] = value
         return our_data
-    
+
     def _has_changed(self, initial_value, data_value):
         if self.form:
             return self.form.has_changed()
@@ -77,23 +92,24 @@ class FormWidget(widgets.Widget):
             return not compare_list(initial_value, data_value)
         return super(FormWidget, self)._has_changed(initial_value, data_value)
 
+
 class FormField(forms.Field):
     widget = FormWidget
-    
+
     def __init__(self, *args, **kwargs):
         self.form_cls = kwargs.pop('form')
         self.field_form = None
         super(FormField, self).__init__(*args, **kwargs)
-    
+
     def post_form_init(self, name, form):
         #this must be called in order for this field to work properly
         self.field_form = self.create_field_form(name, form)
         self.widget.set_form(self.field_form)
-    
+
     def create_field_form(self, name, form):
         prefix = form.add_prefix(name)
         return self.form_cls(data=form.data or None, prefix=prefix, initial=form.initial.get(name))
-    
+
     def clean(self, value):
         value = super(FormField, self).clean(value)
         if self.field_form:
@@ -102,32 +118,55 @@ class FormField(forms.Field):
             return self.field_form.cleaned_data
         return value
 
+
 class ListFormWidget(FormWidget):
-    def _media(self):
-        from django.conf import settings
-        js = [settings.ADMIN_MEDIA_PREFIX+'js/jquery.min.js',
-              settings.ADMIN_MEDIA_PREFIX+'js/jquery.init.js',
-              settings.ADMIN_MEDIA_PREFIX+'js/inlines.min.js',
-              'fieldmaker/js/inline.js',]
+    @property
+    def media(self):
+        js = [
+            settings.ADMIN_MEDIA_PREFIX + 'js/jquery.min.js',
+            settings.ADMIN_MEDIA_PREFIX + 'js/jquery.init.js',
+            settings.ADMIN_MEDIA_PREFIX + 'js/inlines.min.js',
+            'fieldmaker/js/inline.js',
+        ]
         return forms.Media(js=js)
-    media = property(_media)
-    
+
     def render(self, name, node, attrs=None):
         if not attrs:
             attrs = {}
         final_attrs = self.build_attrs(attrs)
-        if self.form: #TODO move this to BaseListFormSet
+        if self.form: # TODO move this to BaseListFormSet
             if hasattr(self.form, 'render'):
                 return self.form.render()
             parts = list()
             for form in self.form.forms:
-                parts.append(u'<tr><td><table class="module">%s</table></td></tr>' % form.as_table())
-            parts.append(u'<tr id="%s-empty" class="empty-form"><td><table class="module">%s</table></td></tr>' % (self.form.prefix, self.form.empty_form.as_table()))
-            return mark_safe(u'<div>%s<table %s> %s</table></div>' % (unicode(self.form.management_form), flatatt(final_attrs), u'\n'.join(parts)))
-        return mark_safe(u'<table%s>&nbsp;</table>' % flatatt(final_attrs))
+                html = get_form_html(form, 'as_table')
+                parts.append('''
+                    <tr>
+                        <td>
+                            {html}
+                        </td>
+                    </tr>'''.format(html=html))
+
+            html = get_form_html(self.empty_form, 'as_table')
+            parts.append('''
+                <tr id="{prefix}-empty" class="empty-form">
+                    <td>
+                        {html}
+                    </td>
+                </tr>'''.format(prefix=self.form.prefix, html=html))
+            return mark_safe('''
+                <div>
+                    {management_form}
+                    <table {attrs}>{tag}</table>
+                </div>'''.format(management_form=self.form.management_form, attrs=flatatt(final_attrs), tag='\n'.join(parts)))
+        return mark_safe('<table {attrs}>&nbsp;</table>'.format(attrs=flatatt(final_attrs)))
+
 
 class BaseListFormSet(BaseFormSet):
-    def _get_cleaned_data(self):
+    render_fn_name = 'as_table'
+
+    @property
+    def cleaned_data(self):
         """
         Returns a list of form.cleaned_data dicts for every form in self.forms.
         """
@@ -148,8 +187,7 @@ class BaseListFormSet(BaseFormSet):
                 if form.cleaned_data or form.has_changed():
                     result.append(form.cleaned_data)
         return result
-    cleaned_data = property(_get_cleaned_data)
-    
+
     def is_valid(self):
         """
         Returns True if form.errors is empty for every form in self.forms.
@@ -170,40 +208,64 @@ class BaseListFormSet(BaseFormSet):
             if bool(self.errors[i]) and form.has_changed():
                 forms_valid = False
         return forms_valid and not bool(self.non_form_errors())
-    
-    def _get_changed_data(self):
+
+    @property
+    def changed_data(self):
         if getattr(self, '_changed_data', None) is None:
             self._changed_data = []
             for i in range(0, self.total_form_count()):
                 form = self.forms[i]
                 self._changed_data.append(form.changed_data)
         return self._changed_data
-    changed_data = property(_get_changed_data)
-    
+
     def has_changed(self):
         for entry in self.changed_data:
             if len(entry): return True
         return False
-    
+
     def render(self):
         parts = list()
         for form in self.forms:
-            parts.append(u'<tr class="dynamic-form"><td><table class="module">%s</table></td></tr>' % form.as_table())
-        parts.append(u'<tr id="%s-empty" class="dynamic-form empty-form"><td><table class="module">%s</table></td></tr>' % (self.prefix, self.empty_form.as_table()))
-        return mark_safe(u'<div class="dynamic-set" data-prefix="%s">%s <table>%s</table></div>' % (self.prefix, unicode(self.management_form), u'\n'.join(parts)))
+            html = get_form_html(form, self.render_fn_name)
+            parts.append('''
+                <tr class="dynamic-form">
+                    <td>
+                        {html}
+                    </td>
+                </tr>'''.format(html=html))
+
+        html = get_form_html(self.empty_form, self.render_fn_name)
+        parts.append('''
+            <tr id="{prefix}-empty" class="dynamic-form empty-form">
+                <td>
+                    {html}
+                </td>
+            </tr>'''.format(prefix=self.prefix, html=html))
+        return mark_safe('''
+            <div class="dynamic-set" data-prefix="{prefix}">
+                {management_form}
+                <table>{tag}</table>
+            </div>'''.format(prefix=self.prefix, management_form=self.management_form, tag='\n'.join(parts)))
+
 
 class ListFormField(FormField):
     widget = ListFormWidget
     can_delete = True
     formset = BaseListFormSet
-    
+
+    def __init__(self, *args, **kwargs):
+        self.can_delete = kwargs.pop('can_delete', self.can_delete)
+        self.extra = kwargs.pop('extra', 2)
+        super(ListFormField, self).__init__(*args, **kwargs)
+
     def create_field_form(self, name, form):
         prefix = form.add_prefix(name)
         formset = formset_factory(self.form_cls,
                                   formset=self.formset,
-                                  can_delete=self.can_delete) #TODO allow for configuration
+                                  can_delete=self.can_delete,
+                                  extra=self.extra) #TODO allow for configuration
         return formset(data=form.data or None, prefix=prefix, initial=form.initial.get(name))
-    
+
     def clean(self, value):
         value = super(ListFormField, self).clean(value)
         if isinstance(value, list):
@@ -214,57 +276,58 @@ class ListFormField(FormField):
             return new_list
         return value
 
+
 class MetaFormMixin(object):
     def post_form_init(self):
-        for name, field in self.fields.iteritems():
+        for name, field in self.fields.items():
             if hasattr(field, 'post_form_init'):
                 field.post_form_init(name, self)
-    
-    
+
 
 class MetaForm(forms.Form, MetaFormMixin):
     def __init__(self, *args, **kwargs):
         forms.Form.__init__(self, *args, **kwargs)
         self.post_form_init()
 
+
 class FieldEntryForm(forms.Form):
     form_spec_version = 'base.1'
-    
+
     name = forms.SlugField(required=True)
     field = forms.ChoiceField(choices=[], widget=forms.Select(attrs={'class':'vFieldSelectorField'}))
     field_spec = forms.CharField(required=False, widget=FormWidget(attrs={'class':'vFieldSpecField'}))
     widget = forms.ChoiceField(choices=[], widget=forms.Select(attrs={'class':'vWidgetSelectorField'}))
     widget_spec = forms.CharField(required=False, widget=FormWidget(attrs={'class':'vWidgetSpecField'}))
-    
+
     def __init__(self, *args, **kwargs):
         super(FieldEntryForm, self).__init__(*args, **kwargs)
         self.populate_field_choices()
         self.populate_widget_choices()
         self.load_field_form()
         self.load_widget_form()
-    
+
     def get_form_spec(self):
         return registry.form_specifications[self.form_spec_version]
-    
+
     def populate_field_choices(self):
         choices = self.get_form_spec().fields.keys()
         self.fields['field'].choices = [('', 'Select Field')] + zip(choices, choices)
-    
+
     def populate_widget_choices(self):
         choices = self.get_form_spec().widgets.keys()
         self.fields['widget'].choices = [('', 'Select Widget')] + zip(choices, choices)
-    
+
     def get_active_field_value(self, field_name):
         key = field_name
         if self.prefix:
             key = '%s-%s' % (self.prefix, key)
-        
+
         value = mapping = None
         if field_name == 'widget':
             mapping = self.get_form_spec().widgets
         elif field_name == 'field':
             mapping = self.get_form_spec().fields
-        
+
         if hasattr(self, 'cleaned_data') and value in self.cleaned_data:
             value = self.cleaned_data[field_name]
         elif self.data and key in self.data:
@@ -274,7 +337,7 @@ class FieldEntryForm(forms.Form):
         if value and mapping:
             value = mapping[value]
         return value
-    
+
     def create_field_form(self):
         field = self.get_active_field_value('field')
         if not field: return
@@ -283,11 +346,11 @@ class FieldEntryForm(forms.Form):
             prefix = '%s-field_spec' % self.prefix
         else:
             prefix = 'field_spec'
-        
+
         self.fields['widget'].choices = [('', 'Select Widget')] + field.widget_choices()
         self.fields['widget'].initial = field.default_widget
         return form_cls(data=self.data or None, prefix=prefix, initial=self.initial.get('field_spec'))
-    
+
     def create_widget_form(self):
         field = self.get_active_field_value('widget')
         if not field: return
@@ -297,21 +360,21 @@ class FieldEntryForm(forms.Form):
         else:
             prefix = 'widget_spec'
         return form_cls(data=self.data or None, prefix=prefix, initial=self.initial.get('widget_spec'))
-    
+
     def load_field_form(self):
         self.fields['field_spec'].widget.set_form(self.create_field_form())
-    
+
     def load_widget_form(self):
         self.fields['widget_spec'].widget.set_form(self.create_widget_form())
-    
+
     @property
     def field_form(self):
         return self.fields['field_spec'].widget.form
-    
+
     @property
     def widget_form(self):
         return self.fields['widget_spec'].widget.form
-    
+
     def clean(self):
         self.load_field_form()
         self.load_widget_form()
